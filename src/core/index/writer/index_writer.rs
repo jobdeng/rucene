@@ -1458,7 +1458,8 @@ where
         {
             let lock = Arc::clone(&self.lock);
             let l = lock.lock()?;
-            let _ = self.abort_merges(l)?;
+            let _l = self.abort_merges(l)?;
+
         }
         self.rate_limiters = Arc::new(ThreadLocal::new());
         debug!("IW - rollback: done finish merges");
@@ -1673,7 +1674,7 @@ where
     ) -> Result<bool> {
         let mut processed = false;
         if index_writer.writer.tragedy.is_none() {
-            while let Ok(event) = index_writer.writer.doc_writer.events.pop() {
+            while let Some(event) = index_writer.writer.doc_writer.events.pop() {
                 processed = true;
                 event.process(index_writer, trigger_merge, force_purge)?;
             }
@@ -2773,7 +2774,7 @@ where
         index_writer
             .writer
             .rate_limiters
-            .get_or(|| Box::new(Arc::clone(&merge.rate_limiter)));
+            .get_or(|| Arc::clone(&merge.rate_limiter));
 
         // let t0 = SystemTime::now();
 
@@ -2846,9 +2847,9 @@ where
                 self.segment_infos.remove(info);
                 self.pending_num_docs
                     .fetch_sub(info.info.max_doc as i64, Ordering::AcqRel);
-                if merge.segments.contains(info) {
+                if let Ok(pos) = merge.segments.binary_search(info) {
                     self.merging_segments.remove(&info.info.name);
-                    merge.segments.remove_item(info);
+                    merge.segments.remove(pos);
                 }
                 self.reader_pool.drop(info.as_ref())?;
             }

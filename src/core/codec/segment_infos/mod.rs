@@ -625,6 +625,17 @@ impl<D: Directory, C: Codec> PartialEq for SegmentCommitInfo<D, C> {
     }
 }
 
+impl <D: Directory, C: Codec> Ord for SegmentCommitInfo<D, C> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.info.name.cmp(&other.info.name)
+    }
+}
+impl <D: Directory, C: Codec> PartialOrd for SegmentCommitInfo<D, C> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.info.name.partial_cmp(&other.info.name)
+    }
+}
+
 impl<D: Directory, C: Codec> Serialize for SegmentCommitInfo<D, C> {
     fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
     where

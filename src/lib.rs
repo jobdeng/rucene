@@ -19,16 +19,19 @@
 #![feature(drain_filter)]
 #![feature(hashmap_internals)]
 #![feature(integer_atomics)]
-#![feature(vec_remove_item)]
+// #![feature(vec_remove_item)]
 #![feature(specialization)]
 #![allow(clippy::cast_lossless)]
 #![feature(fn_traits)]
-#![feature(maybe_uninit_ref)]
-#![feature(maybe_uninit_extra)]
-#![feature(in_band_lifetimes)]
+// #![feature(maybe_uninit_ref)]
+// #![feature(maybe_uninit_extra)]
+#![feature(maybe_uninit_as_bytes)]
+// #![feature(in_band_lifetimes)]
 #![feature(vec_into_raw_parts)]
 #![feature(core_intrinsics)]
 #![feature(stmt_expr_attributes)]
+#![feature(let_chains)]
+#![allow(cast_ref_to_mut)]
 
 #[macro_use]
 extern crate error_chain;
@@ -46,7 +49,7 @@ extern crate serde_json;
 extern crate alloc;
 extern crate byteorder;
 extern crate bytes;
-extern crate crc;
+extern crate crc32fast; // extern crate crc;
 extern crate crossbeam;
 extern crate fasthash;
 extern crate flate2;
