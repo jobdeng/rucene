@@ -11,6 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+///
+/// TODO 
+/// 1. Make use of standard SIMD (`std::simd`, `#![feature(portable_simd)]`) to `pack` and `unpack` data.
+/// 2. For __m128i (i32x4), only pack bits (aligned with):
+///      -  1: bool (0|1)
+///      -  8: i8 (char, enum)
+///      - 16: i16 (short int)
+///
+
 use std::arch::x86_64 as simd;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
@@ -143,11 +152,17 @@ macro_rules! unpack_bits {
                         } else {
                             const remain: i32 = 32 - inner_pos;
                             let temp = simd::_mm_lddqu_si128(input);
-                            _buffer = simd::_mm_and_si128(simd::_mm_or_si128(
-                                _buffer, simd::_mm_slli_epi32(temp, remain)), mask);
+                            _buffer = simd::_mm_and_si128(simd::_mm_or_si128(_buffer, simd::_mm_slli_epi32(temp, remain)), mask);
                             $(_buffer = $transfer($obj, _buffer);)?
                             simd::_mm_storeu_si128(_output, _buffer);
-                            simd::_mm_srli_epi32(temp, $num - remain)
+                            // FIX: error[E0080]: evaluation of `std::arch::x86_64::_mm_srli_epi32::<-31>::{constant#0}` failed
+                            //      the evaluated program panicked at 'IMM8 doesn't fit in 8 bits'
+                            //      [cause]: marcro expansion is fine, but the `const`s (`inner_pos`, `remain`) would mistakenly lead compiler to evalue `$num - remain` as `1 - 32`. 
+                            // TODO any compiler option to optimize this?
+                            // simd::_mm_srli_epi32(tmp, $num - remain)
+                            simd::_mm_srli_epi32(temp, if new_pos > 32 {
+                                $num - remain
+                            } else {0})
                         }
                     } else {
                         let mut _data = simd::_mm_and_si128(_buffer, mask);

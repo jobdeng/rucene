@@ -11,30 +11,34 @@ can easily be used to add full text search capabilities to applications.
 """
 
 [dependencies]
-bytes = "0.4"
+bytes = "1.4.0"
 chan = "0.1.21"
 chan-signal = "0.3.1"
-crc = "1.5.0"
-crossbeam = "0.7"
+crc32fast = "1.3.2"  # crc = "3.0.1"
+crossbeam = "0.8.2"
 either = "1.3"
 error-chain = "0.12.1"
-fasthash = "0.3"
+fasthash = "0.4.0"
 flate2 = "1.0.2"
 lazy_static = "1.0"
 log = "0.4"
-memmap = "0.6"
+memmap = "0.7.0"
 num_cpus = "1.10.0"
-rand = "0.5"
-regex = "0.2"
+rand = "0.8.5"
+regex = "1.8.4"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-smallvec = "0.6.9"
-thread_local = "0.3"
-unicode_reader = "0.1.1"
+smallvec = "1.11.0"
+thread_local = "1.1.7"
+unicode_reader = "1.0.2"
 num-traits = "0.2"
 byteorder = "1"
 crunchy = "0.2.2"
+
+# [target.'cfg(target_arch="x86_64")'.dependencies]
+# [target.'cfg(target_arch="aarch64")'.dependencies]
+
 
 [dev-dependencies]
 tempfile = "3.0.8"

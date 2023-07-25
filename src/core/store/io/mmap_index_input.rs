@@ -178,7 +178,7 @@ impl MmapIndexInput {
             };
             let mmap = unsafe {
                 MmapOptions::new()
-                    .offset(offset)
+                    .offset(offset as u64)
                     .len(adapted_len)
                     .map(&file)?
             };

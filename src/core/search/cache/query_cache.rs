@@ -417,7 +417,7 @@ impl<C: Codec> Weight<C> for CachingWrapperWeight<C> {
         &self,
         leaf_reader: &LeafReaderContext<'_, C>,
     ) -> Result<Option<Box<dyn Scorer>>> {
-        if !self.used.compare_and_swap(false, true, Ordering::AcqRel) {
+        if let Ok(res) = self.used.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire) && !res {
             self.policy.on_use(self)
         }
 
