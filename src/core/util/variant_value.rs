@@ -379,6 +379,66 @@ impl From<Numeric> for VariantValue {
     }
 }
 
+use serde_json::Value;
+use std::convert::TryFrom;
+impl TryFrom<&Value> for VariantValue {
+    type Error = &'static str;
+    /// TODO error with json path
+    fn try_from(val: &Value) -> Result<Self, Self::Error> {
+        if val.is_boolean() {
+            match val.as_bool() {
+                None => Err("not a bool"),
+                Some(val) => Ok(VariantValue::Bool(val))
+            }
+        } else if val.is_f64() {
+            match val.as_f64() {
+                None => Err("not a double"),
+                Some(val) => Ok(VariantValue::Double(val))
+            }
+        } else if val.is_i64() {
+            match val.as_i64() {
+                None => Err("not a signed long"),
+                Some(val) => Ok(VariantValue::Long(val))
+            }
+        } else if val.is_u64() {
+            match val.as_u64() {
+                None => Err("not an unsigned long"),
+                Some(val) => Ok(VariantValue::Long(val as i64))
+            }
+        // } else if val.is_number() {}//char, short, int, float
+        } else if val.is_string() {
+            match val.as_str() {
+                None => Err("not a string"),
+                Some(val) => Ok(VariantValue::VString(val.into()))//TODO binary?
+            }
+        } else if val.is_array() {
+            match val.as_array() {
+                None => Err("not an array"),
+                Some(val) => {
+                    let mut itms = Vec::<VariantValue>::new();
+                    for itm in val {
+                        itms.push(VariantValue::try_from(itm)?);
+                    }
+                    Ok(VariantValue::Vec(itms))
+                }
+            }
+        } else if val.is_object() {
+            match val.as_object() {
+                None => Err("not an object"),
+                Some(val) => {
+                    let mut itms = HashMap::<String,VariantValue>::new();
+                    for (key,val) in val {
+                        itms.insert(key.into(), VariantValue::try_from(val)?);
+                    }
+                    Ok(VariantValue::Map(itms))
+                }
+            }
+        } else {//null     
+            Err("invald value")      
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -471,6 +531,51 @@ mod tests {
             for (i, val) in bvec.iter().enumerate() {
                 assert_eq!(*val, b'A' + i as u8);
             }
+        }
+    }
+
+    #[test]
+    fn test_from_json_value() {
+        let jval = serde_json::from_str::<Value>(r#"{
+            "fld_bool": true,
+            "fld_double": 3.907,
+            "fld_long": -78203,
+            "fld_ulong": 45678062,
+            "fld_string": "Hi Runcene!",
+            "fld_array": [{
+                "ary_fld_string": "val1",
+                "ary_fld_double": 0.123
+            },{
+                "ary_fld_string": "val2",
+                "ary_fld_double": 9.8765
+            }],
+            "fld_object": {
+                "obj_fld_ulong": 23456789,
+                "obj_fld_bool": false,
+                "obj_fld_array": ["val1","val2"]
+            }
+        }"#).unwrap();
+        let vval = VariantValue::try_from(&jval).unwrap();
+        //TODO serialize vval then commpare ...
+        if let VariantValue::Map(map) = vval && !map.is_empty() {
+            assert!(map.get("fld_bool").is_some_and(|val|val.get_bool().unwrap()==true));
+            assert!(map.get("fld_double").is_some_and(|val|val.get_double().unwrap()==3.907f64));
+            assert!(map.get("fld_long").is_some_and(|val|val.get_long().unwrap()==-78203i64));
+            assert!(map.get("fld_ulong").is_some_and(|val|val.get_long().unwrap()==45678062i64));
+            assert!(map.get("fld_string").is_some_and(|val|val.get_string().unwrap().eq("Hi Runcene!")));
+            assert!(map.get("fld_noexists").is_none());
+            let fld_ary = map.get("fld_array").unwrap();
+            let fld_obj = map.get("fld_object").unwrap();
+            if let (VariantValue::Vec(ary),VariantValue::Map(obj)) = (fld_ary,fld_obj) && ary.len()==2 && obj.len()==3 {
+                assert!(ary.get(0).unwrap().get_map().unwrap().get("ary_fld_double").is_some_and(|val|val.get_double().unwrap()==0.123f64));
+                assert!(obj.get("obj_fld_ulong").is_some_and(|val|val.get_long().unwrap()==23456789));
+                assert!(obj.get("obj_fld_bool").is_some_and(|val|val.get_bool().unwrap()==false));
+                assert!(obj.get("obj_fld_array").is_some_and(|val|val.get_vec().unwrap().len()==2));
+            } else {
+                assert!(false);
+            }
+        } else {
+            assert!(false);
         }
     }
 }
