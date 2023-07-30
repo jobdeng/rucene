@@ -379,8 +379,8 @@ impl From<Numeric> for VariantValue {
     }
 }
 
-use serde_json::Value;
-use std::convert::TryFrom;
+use serde_json::{Value,Number};
+use std::convert::{TryFrom,TryInto};
 impl TryFrom<&Value> for VariantValue {
     type Error = &'static str;
     /// TODO error with json path
@@ -436,6 +436,46 @@ impl TryFrom<&Value> for VariantValue {
         } else {//null     
             Err("invald value")      
         }
+    }
+}
+
+impl TryInto<Value> for VariantValue {
+    type Error = &'static str;
+    fn try_into(self) -> Result<Value, Self::Error> {
+        Ok(match self {
+            VariantValue::Bool(val) => Value::Bool(val),
+            VariantValue::Char(val) => Value::Number(Number::from(val as u8)),
+            VariantValue::Short(val) => Value::Number(Number::from(val)),
+            VariantValue::Int(val) => Value::Number(Number::from(val)),
+            VariantValue::Long(val) => Value::Number(Number::from(val)),
+            VariantValue::Float(val) => match Number::from_f64(val as f64) {
+                None => return Err("not a json number"),
+                Some(val) => Value::Number(val)
+            },
+            VariantValue::Double(val) => match Number::from_f64(val) {
+                None => return Err("not a json number"),
+                Some(val) => Value::Number(val)
+            },
+            VariantValue::VString(val) => Value::String(val),
+            VariantValue::Binary(val) => match String::from_utf8(val) {
+                Err(err) => return Err("the binary array is not utf-8 string"),
+                Ok(val) =>  Value::String(val)
+            },
+            VariantValue::Vec(vals) => {
+                let mut itms = Vec::<Value>::new();
+                for val in vals {
+                    itms.push(val.try_into()?);
+                }
+                Value::Array(itms)
+            },
+            VariantValue::Map(vals) => {
+                let mut itms = serde_json::Map::<String,Value>::new();
+                for (key,val) in vals {
+                    itms.insert(key, val.try_into()?);
+                }
+                Value::Object(itms)
+            }
+        })
     }
 }
 
@@ -536,7 +576,7 @@ mod tests {
 
     #[test]
     fn test_from_json_value() {
-        let jval = serde_json::from_str::<Value>(r#"{
+        let jval = /*json!()*/ serde_json::from_str::<Value>(r#"{
             "fld_bool": true,
             "fld_double": 3.907,
             "fld_long": -78203,
@@ -577,5 +617,59 @@ mod tests {
         } else {
             assert!(false);
         }
+    }
+
+    #[test]
+    fn test_into_json_value() {
+        let var_val = VariantValue::Bool(true);
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_boolean()&&jsn_val.as_bool().unwrap());
+        let var_val = VariantValue::Char('^');
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_number()&&jsn_val.is_u64()&&jsn_val.as_i64().unwrap()==('^' as i64));
+        let var_val = VariantValue::Short(82i16);
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_number()&&jsn_val.is_i64()&&jsn_val.as_i64().unwrap()==82i64);
+        let var_val = VariantValue::Int(6321i32);
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_number()&&jsn_val.is_i64()&&jsn_val.as_i64().unwrap()==6321i64);
+        let var_val = VariantValue::Long(-56783974i64);
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_number()&&jsn_val.is_i64()&&jsn_val.as_i64().unwrap()==-56783974i64);
+        let var_val = VariantValue::Float(-32.7458932f32);
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_number()&&jsn_val.is_f64()&&(jsn_val.as_f64().unwrap()+32.745f64).abs()<=0.001);//==-32.7458932f64
+        let var_val = VariantValue::Double(345679084.78213f64);
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_number()&&jsn_val.is_f64()&&(jsn_val.as_f64().unwrap()-345679084.782f64).abs()<=0.001);//==345679084.78213f64
+        let var_val = VariantValue::VString(String::from("auxhfcmzk_ dsjf udf3432120+(#QR98"));
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_string()&&jsn_val.as_str().unwrap().eq("auxhfcmzk_ dsjf udf3432120+(#QR98"));
+        let var_val = VariantValue::Binary("您好！👋Hello Rucene!頑張って".as_bytes().to_vec());
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_string()&&jsn_val.as_str().unwrap().eq("您好！👋Hello Rucene!頑張って"));
+        let var_val = VariantValue::Vec(vec![
+            VariantValue::VString("成都大运会欢迎您！".into()),
+            VariantValue::VString("女子足球世界杯-中国队1:0海地".into()),
+            VariantValue::VString("がんばって".into()),
+            VariantValue::VString("Let's go hunting!".into())
+        ]);
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_array());
+        let jsn_ary = jsn_val.as_array().unwrap();
+        assert!(jsn_ary.len()==4 &&
+            jsn_ary[0].is_string()&&jsn_ary[0].as_str().unwrap().eq("成都大运会欢迎您！") &&
+            jsn_ary[3].is_string()&&jsn_ary[3].as_str().unwrap().eq("Let's go hunting!")
+        );
+        let var_val = VariantValue::Map(vec![
+            (String::from("seq_no"),VariantValue::Long(901_245)),
+            (String::from("len_km"),VariantValue::Long(45_678_018))
+        ].into_iter().collect());
+        let jsn_val: Value = var_val.try_into().unwrap();
+        assert!(jsn_val.is_object());
+        let jsn_obj = jsn_val.as_object().unwrap();
+        assert!(jsn_obj.len()==2 && jsn_obj.contains_key("seq_no") && jsn_obj.contains_key("len_km"));
+        let len_km = jsn_obj.get("len_km").unwrap();
+        assert!(len_km.is_number()&&len_km.is_i64()&&len_km.as_i64().unwrap()==45_678_018i64);
     }
 }
