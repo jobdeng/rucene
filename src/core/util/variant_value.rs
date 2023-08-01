@@ -433,6 +433,8 @@ impl TryFrom<&Value> for VariantValue {
                     Ok(VariantValue::Map(itms))
                 }
             }
+        } else if val.is_null() {
+            Ok(VariantValue::Binary(Vec::<u8>::new()))
         } else {//null     
             Err("invald value")      
         }
@@ -444,7 +446,12 @@ impl TryInto<Value> for VariantValue {
     fn try_into(self) -> Result<Value, Self::Error> {
         Ok(match self {
             VariantValue::Bool(val) => Value::Bool(val),
-            VariantValue::Char(val) => Value::Number(Number::from(val as u8)),
+            VariantValue::Char(val) => {
+                // Value::Number(Number::from(val as u32))
+                let sz = val.len_utf8();
+                let mut dst = vec![0;sz];
+                Value::String(val.encode_utf8(&mut dst).into())
+            }
             VariantValue::Short(val) => Value::Number(Number::from(val)),
             VariantValue::Int(val) => Value::Number(Number::from(val)),
             VariantValue::Long(val) => Value::Number(Number::from(val)),
@@ -576,28 +583,32 @@ mod tests {
 
     #[test]
     fn test_from_json_value() {
-        let jval = /*json!()*/ serde_json::from_str::<Value>(r#"{
-            "fld_bool": true,
-            "fld_double": 3.907,
-            "fld_long": -78203,
-            "fld_ulong": 45678062,
-            "fld_string": "Hi Runcene!",
-            "fld_array": [{
-                "ary_fld_string": "val1",
-                "ary_fld_double": 0.123
-            },{
-                "ary_fld_string": "val2",
-                "ary_fld_double": 9.8765
-            }],
-            "fld_object": {
-                "obj_fld_ulong": 23456789,
-                "obj_fld_bool": false,
-                "obj_fld_array": ["val1","val2"]
+        let jval = serde_json::json!(
+            {
+                "fld_null": null,
+                "fld_bool": true,
+                "fld_double": 3.907,
+                "fld_long": -78203,
+                "fld_ulong": 45678062,
+                "fld_string": "Hi Runcene!",
+                "fld_array": [{
+                    "ary_fld_string": "val1",
+                    "ary_fld_double": 0.123
+                },{
+                    "ary_fld_string": "val2",
+                    "ary_fld_double": 9.8765
+                }],
+                "fld_object": {
+                    "obj_fld_ulong": 23456789,
+                    "obj_fld_bool": false,
+                    "obj_fld_array": ["val1","val2"]
+                }
             }
-        }"#).unwrap();
+        );
         let vval = VariantValue::try_from(&jval).unwrap();
         //TODO serialize vval then commpare ...
         if let VariantValue::Map(map) = vval && !map.is_empty() {
+            assert!(map.get("fld_null").is_some_and(|val|val.get_binary().unwrap().len()==0));
             assert!(map.get("fld_bool").is_some_and(|val|val.get_bool().unwrap()==true));
             assert!(map.get("fld_double").is_some_and(|val|val.get_double().unwrap()==3.907f64));
             assert!(map.get("fld_long").is_some_and(|val|val.get_long().unwrap()==-78203i64));
@@ -624,9 +635,10 @@ mod tests {
         let var_val = VariantValue::Bool(true);
         let jsn_val: Value = var_val.try_into().unwrap();
         assert!(jsn_val.is_boolean()&&jsn_val.as_bool().unwrap());
-        let var_val = VariantValue::Char('^');
+        let var_val = VariantValue::Char('👋'/*'^'*/);
         let jsn_val: Value = var_val.try_into().unwrap();
-        assert!(jsn_val.is_number()&&jsn_val.is_u64()&&jsn_val.as_i64().unwrap()==('^' as i64));
+        //assert!(jsn_val.is_number()&&jsn_val.is_u64()&&jsn_val.as_i64().unwrap()==('^' as i64));
+        assert!(jsn_val.is_string()&&jsn_val.as_str().unwrap().eq("👋"));
         let var_val = VariantValue::Short(82i16);
         let jsn_val: Value = var_val.try_into().unwrap();
         assert!(jsn_val.is_number()&&jsn_val.is_i64()&&jsn_val.as_i64().unwrap()==82i64);
